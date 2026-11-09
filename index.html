@@ -330,4 +330,148 @@
 
     const startOffset = new Date(year, month, 1).getDay();
     const start = new Date(year, month, 1 - startOffset);
-    c
+    const today = new Date();
+
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      if (d.getMonth() !== month) cell.classList.add("other");
+      if (d.getDay() === 0) cell.classList.add("sun");
+      if (d.getDay() === 6) cell.classList.add("sat");
+      if (sameDay(d, today)) cell.classList.add("today");
+
+      const top = document.createElement("div");
+      top.className = "top";
+      const num = document.createElement("span");
+      num.className = "num";
+      num.textContent = d.getDate();
+      const moon = document.createElement("span");
+      moon.className = "moon";
+      moon.textContent = MOONS[moonIndex(moonAge(d))];
+      top.appendChild(num);
+      top.appendChild(moon);
+      cell.appendChild(top);
+
+      const w = weather[key(d)];
+      if (w) {
+        const wx = document.createElement("div");
+        wx.className = "wx";
+        wx.textContent = wxInfo(w.code)[0] + Math.round(w.max) + "°";
+        cell.appendChild(wx);
+      }
+
+      const list = events[key(d)] || [];
+      list.slice(0, 2).forEach(ev => {
+        const e = document.createElement("span");
+        e.className = "ev";
+        e.textContent = ev.title;
+        cell.appendChild(e);
+      });
+      if (list.length > 2) {
+        const more = document.createElement("div");
+        more.className = "more";
+        more.textContent = "+" + (list.length - 2);
+        cell.appendChild(more);
+      }
+
+      cell.onclick = () => openSheet(d);
+      grid.appendChild(cell);
+    }
+  }
+
+  // ---- 予定シート ----
+  function openSheet(d) {
+    selected = d;
+    document.getElementById("sheetTitle").textContent =
+      (d.getMonth() + 1) + "月" + d.getDate() + "日の予定";
+    const age = moonAge(d);
+    const idx = moonIndex(age);
+    document.getElementById("sheetMoon").textContent =
+      MOONS[idx] + " 月齢 " + age.toFixed(1) + "（" + MOON_NAMES[idx] + "）";
+
+    const w = weather[key(d)];
+    const wxEl = document.getElementById("sheetWx");
+    if (w) {
+      const info = wxInfo(w.code);
+      wxEl.textContent = info[0] + " " + info[1] +
+        "　" + Math.round(w.max) + "° / " + Math.round(w.min) + "°" +
+        (w.pop != null ? "　降水 " + w.pop + "%" : "");
+    } else {
+      wxEl.textContent = "この日の天気予報はありません";
+    }
+
+    renderList();
+    document.getElementById("sheet").classList.add("open");
+  }
+  function closeSheet() {
+    document.getElementById("sheet").classList.remove("open");
+  }
+  function renderList() {
+    const events = loadEvents();
+    const list = (events[key(selected)] || []).slice();
+    list.sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
+    const box = document.getElementById("list");
+    box.innerHTML = "";
+    if (list.length === 0) {
+      box.innerHTML = '<div class="empty">予定はありません</div>';
+      return;
+    }
+    list.forEach(ev => {
+      const row = document.createElement("div");
+      row.className = "item";
+      const label = document.createElement("span");
+      label.textContent = (ev.time ? ev.time + "  " : "") + ev.title;
+      const del = document.createElement("button");
+      del.textContent = "削除";
+      del.onclick = () => removeEvent(ev.id);
+      row.appendChild(label);
+      row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+  function addEvent() {
+    const titleEl = document.getElementById("evTitle");
+    const timeEl = document.getElementById("evTime");
+    const title = titleEl.value.trim();
+    if (!title || !selected) return;
+    const events = loadEvents();
+    const k = key(selected);
+    if (!events[k]) events[k] = [];
+    events[k].push({ id: Date.now(), title: title, time: timeEl.value });
+    saveEvents(events);
+    titleEl.value = "";
+    timeEl.value = "";
+    renderList();
+    render();
+  }
+  function removeEvent(id) {
+    const events = loadEvents();
+    const k = key(selected);
+    events[k] = (events[k] || []).filter(e => e.id !== id);
+    if (events[k].length === 0) delete events[k];
+    saveEvents(events);
+    renderList();
+    render();
+  }
+
+  document.getElementById("add").onclick = addEvent;
+  document.getElementById("evTitle").addEventListener("keydown", e => {
+    if (e.key === "Enter") addEvent();
+  });
+  document.getElementById("close").onclick = closeSheet;
+  document.getElementById("prev").onclick = () => {
+    current.setMonth(current.getMonth() - 1);
+    render();
+  };
+  document.getElementById("next").onclick = () => {
+    current.setMonth(current.getMonth() + 1);
+    render();
+  };
+  document.getElementById("loc").onclick = () => loadWeather(true);
+
+  render();
+  loadWeather(false);
+</script>
+</body>
+</html>
