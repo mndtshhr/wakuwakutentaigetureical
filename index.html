@@ -152,14 +152,6 @@
     padding: 10px;
     font-size: 16px;
   }
-  .form input[type=time] {
-    background: #2a2a2d;
-    border: 1px solid #444;
-    border-radius: 8px;
-    color: #eee;
-    padding: 8px;
-    font-size: 14px;
-  }
   .form button {
     background: #4a9eff;
     border: none;
@@ -199,7 +191,6 @@
     <div id="list"></div>
     <div class="form">
       <input type="text" id="evTitle" placeholder="予定を入力">
-      <input type="time" id="evTime">
       <button id="add">追加</button>
     </div>
   </div>
@@ -431,7 +422,6 @@
   function renderList() {
     const events = loadEvents();
     const list = (events[key(selected)] || []).slice();
-    list.sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
     const box = document.getElementById("list");
     box.innerHTML = "";
     if (list.length === 0) {
@@ -442,7 +432,7 @@
       const row = document.createElement("div");
       row.className = "item";
       const label = document.createElement("span");
-      label.textContent = (ev.time ? ev.time + "  " : "") + ev.title;
+      label.textContent = ev.title;
       const del = document.createElement("button");
       del.textContent = "削除";
       del.onclick = () => removeEvent(ev.id);
@@ -453,16 +443,14 @@
   }
   function addEvent() {
     const titleEl = document.getElementById("evTitle");
-    const timeEl = document.getElementById("evTime");
     const title = titleEl.value.trim();
     if (!title || !selected) return;
     const events = loadEvents();
     const k = key(selected);
     if (!events[k]) events[k] = [];
-    events[k].push({ id: Date.now(), title: title, time: timeEl.value });
+    events[k].push({ id: Date.now(), title: title });
     saveEvents(events);
     titleEl.value = "";
-    timeEl.value = "";
     renderList();
     render();
   }
