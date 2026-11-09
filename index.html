@@ -376,7 +376,7 @@
         ico.textContent = wxInfo(w.code)[0];
         const tmp = document.createElement("span");
         tmp.className = "tmp";
-        tmp.textContent = Math.round(w.max) + "/" + Math.round(w.min);
+        tmp.textContent = Math.round(w.max) + "°/" + Math.round(w.min) + "°";
         wx.appendChild(ico);
         wx.appendChild(tmp);
         cell.appendChild(wx);
