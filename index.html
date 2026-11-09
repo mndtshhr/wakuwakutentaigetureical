@@ -44,13 +44,16 @@
     flex: 1;
     grid-auto-rows: 1fr;
     border-top: 1px solid #333;
+    min-height: 0;
   }
   .cell {
     border-right: 1px solid #222;
     border-bottom: 1px solid #222;
-    padding: 4px;
-    font-size: 14px;
+    padding: 3px;
+    font-size: 13px;
     cursor: pointer;
+    overflow: hidden;
+    min-width: 0;
   }
   .cell.other { opacity: 0.3; }
   .cell.today .num {
@@ -58,12 +61,92 @@
     color: #fff;
     border-radius: 50%;
     display: inline-block;
-    width: 24px;
-    height: 24px;
-    line-height: 24px;
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
     text-align: center;
   }
-  .cell.selected { background: #222; }
+  .ev {
+    display: block;
+    background: #2a4a7a;
+    color: #fff;
+    font-size: 10px;
+    border-radius: 3px;
+    padding: 1px 3px;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .more { font-size: 10px; color: #999; margin-top: 2px; }
+
+  #sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    max-height: 70vh;
+    background: #1c1c1e;
+    border-radius: 16px 16px 0 0;
+    padding: 16px;
+    transform: translateY(100%);
+    transition: transform 0.2s;
+    overflow-y: auto;
+    z-index: 10;
+  }
+  #sheet.open { transform: translateY(0); }
+  #sheetTitle { font-size: 17px; font-weight: bold; margin-bottom: 10px; }
+  .item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #2a2a2d;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 6px;
+    font-size: 15px;
+  }
+  .item button {
+    background: none;
+    border: none;
+    color: #ff6b6b;
+    font-size: 14px;
+    padding: 4px 8px;
+  }
+  .empty { color: #888; font-size: 14px; margin-bottom: 10px; }
+  .form { display: flex; gap: 6px; margin-top: 10px; }
+  .form input[type=text] {
+    flex: 1;
+    min-width: 0;
+    background: #2a2a2d;
+    border: 1px solid #444;
+    border-radius: 8px;
+    color: #eee;
+    padding: 10px;
+    font-size: 16px;
+  }
+  .form input[type=time] {
+    background: #2a2a2d;
+    border: 1px solid #444;
+    border-radius: 8px;
+    color: #eee;
+    padding: 8px;
+    font-size: 14px;
+  }
+  .form button {
+    background: #4a9eff;
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    padding: 0 16px;
+    font-size: 16px;
+  }
+  #close {
+    position: absolute;
+    top: 10px; right: 14px;
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 22px;
+  }
 </style>
 </head>
 <body>
@@ -77,22 +160,46 @@
   </div>
   <div class="grid" id="grid"></div>
 
+  <div id="sheet">
+    <button id="close">✕</button>
+    <div id="sheetTitle"></div>
+    <div id="list"></div>
+    <div class="form">
+      <input type="text" id="evTitle" placeholder="予定を入力">
+      <input type="time" id="evTime">
+      <button id="add">追加</button>
+    </div>
+  </div>
+
 <script>
   let current = new Date();
   current.setDate(1);
   let selected = null;
 
+  // ---- 保存 ----
+  function loadEvents() {
+    try { return JSON.parse(localStorage.getItem("events") || "{}"); }
+    catch (e) { return {}; }
+  }
+  function saveEvents(data) {
+    localStorage.setItem("events", JSON.stringify(data));
+  }
+  function key(d) {
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return d.getFullYear() + "-" + m + "-" + day;
+  }
   function sameDay(a, b) {
-    return a.getFullYear() === b.getFullYear() &&
-           a.getMonth() === b.getMonth() &&
-           a.getDate() === b.getDate();
+    return key(a) === key(b);
   }
 
+  // ---- 月表示 ----
   function render() {
     const year = current.getFullYear();
     const month = current.getMonth();
     document.getElementById("title").textContent = year + "年" + (month + 1) + "月";
 
+    const events = loadEvents();
     const grid = document.getElementById("grid");
     grid.innerHTML = "";
 
@@ -108,18 +215,95 @@
       if (d.getDay() === 0) cell.classList.add("sun");
       if (d.getDay() === 6) cell.classList.add("sat");
       if (sameDay(d, today)) cell.classList.add("today");
-      if (selected && sameDay(d, selected)) cell.classList.add("selected");
 
       const num = document.createElement("span");
       num.className = "num";
       num.textContent = d.getDate();
       cell.appendChild(num);
 
-      cell.onclick = () => { selected = d; render(); };
+      const list = events[key(d)] || [];
+      list.slice(0, 2).forEach(ev => {
+        const e = document.createElement("span");
+        e.className = "ev";
+        e.textContent = ev.title;
+        cell.appendChild(e);
+      });
+      if (list.length > 2) {
+        const more = document.createElement("div");
+        more.className = "more";
+        more.textContent = "+" + (list.length - 2);
+        cell.appendChild(more);
+      }
+
+      cell.onclick = () => openSheet(d);
       grid.appendChild(cell);
     }
   }
 
+  // ---- 予定シート ----
+  function openSheet(d) {
+    selected = d;
+    document.getElementById("sheetTitle").textContent =
+      (d.getMonth() + 1) + "月" + d.getDate() + "日の予定";
+    renderList();
+    document.getElementById("sheet").classList.add("open");
+  }
+  function closeSheet() {
+    document.getElementById("sheet").classList.remove("open");
+  }
+  function renderList() {
+    const events = loadEvents();
+    const list = (events[key(selected)] || []).slice();
+    list.sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
+    const box = document.getElementById("list");
+    box.innerHTML = "";
+    if (list.length === 0) {
+      box.innerHTML = '<div class="empty">予定はありません</div>';
+      return;
+    }
+    list.forEach(ev => {
+      const row = document.createElement("div");
+      row.className = "item";
+      const label = document.createElement("span");
+      label.textContent = (ev.time ? ev.time + "  " : "") + ev.title;
+      const del = document.createElement("button");
+      del.textContent = "削除";
+      del.onclick = () => removeEvent(ev.id);
+      row.appendChild(label);
+      row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+  function addEvent() {
+    const titleEl = document.getElementById("evTitle");
+    const timeEl = document.getElementById("evTime");
+    const title = titleEl.value.trim();
+    if (!title || !selected) return;
+    const events = loadEvents();
+    const k = key(selected);
+    if (!events[k]) events[k] = [];
+    events[k].push({ id: Date.now(), title: title, time: timeEl.value });
+    saveEvents(events);
+    titleEl.value = "";
+    timeEl.value = "";
+    renderList();
+    render();
+  }
+  function removeEvent(id) {
+    const events = loadEvents();
+    const k = key(selected);
+    events[k] = (events[k] || []).filter(e => e.id !== id);
+    if (events[k].length === 0) delete events[k];
+    saveEvents(events);
+    renderList();
+    render();
+  }
+
+  document.getElementById("add").onclick = addEvent;
+  document.getElementById("evTitle").addEventListener("keydown", e => {
+    if (e.key === "Enter") addEvent();
+  });
+  document.getElementById("close").onclick = closeSheet;
   document.getElementById("prev").onclick = () => {
     current.setMonth(current.getMonth() - 1);
     render();
