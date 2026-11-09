@@ -18,7 +18,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    padding: 12px 8px;
   }
   header button {
     background: none;
@@ -27,6 +27,7 @@
     font-size: 24px;
     padding: 4px 12px;
   }
+  #loc { font-size: 18px !important; }
   #title { font-size: 20px; font-weight: bold; }
   .week, .grid {
     display: grid;
@@ -62,6 +63,12 @@
     justify-content: space-between;
   }
   .moon { font-size: 11px; line-height: 1; }
+  .wx {
+    font-size: 10px;
+    color: #ccc;
+    margin-top: 1px;
+    white-space: nowrap;
+  }
   .cell.today .num {
     background: #4a9eff;
     color: #fff;
@@ -100,7 +107,8 @@
   }
   #sheet.open { transform: translateY(0); }
   #sheetTitle { font-size: 17px; font-weight: bold; margin-bottom: 4px; }
-  #sheetMoon { font-size: 13px; color: #aaa; margin-bottom: 10px; }
+  #sheetMoon, #sheetWx { font-size: 13px; color: #aaa; margin-bottom: 4px; }
+  #sheetWx { margin-bottom: 10px; }
   .item {
     display: flex;
     align-items: center;
@@ -160,7 +168,9 @@
   <header>
     <button id="prev">‹</button>
     <div id="title"></div>
-    <button id="next">›</button>
+    <div>
+      <button id="loc">📍</button><button id="next">›</button>
+    </div>
   </header>
   <div class="week">
     <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
@@ -171,6 +181,7 @@
     <button id="close">✕</button>
     <div id="sheetTitle"></div>
     <div id="sheetMoon"></div>
+    <div id="sheetWx"></div>
     <div id="list"></div>
     <div class="form">
       <input type="text" id="evTitle" placeholder="予定を入力">
@@ -183,6 +194,7 @@
   let current = new Date();
   current.setDate(1);
   let selected = null;
+  let weather = {}; // "YYYY-MM-DD" -> {code, max, min, pop}
 
   // ---- 月齢 ----
   const SYNODIC = 29.530588;
@@ -190,7 +202,6 @@
   const MOON_NAMES = ["新月", "三日月", "上弦", "十三夜", "満月", "十八夜", "下弦", "二十六夜"];
 
   function moonAge(d) {
-    // その日の正午(端末の時間帯)で計算。基準: 2000-01-06 18:14 UTC の新月
     const t = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12).getTime();
     const ref = Date.UTC(2000, 0, 6, 18, 14);
     const days = (t - ref) / 86400000;
@@ -198,6 +209,96 @@
   }
   function moonIndex(age) {
     return Math.floor((age / SYNODIC) * 8 + 0.5) % 8;
+  }
+
+  // ---- 天気 ----
+  function wxInfo(code) {
+    if (code === 0) return ["☀️", "快晴"];
+    if (code === 1) return ["🌤️", "晴れ"];
+    if (code === 2) return ["⛅", "くもり時々晴れ"];
+    if (code === 3) return ["☁️", "くもり"];
+    if (code === 45 || code === 48) return ["🌫️", "霧"];
+    if (code >= 51 && code <= 57) return ["🌦️", "霧雨"];
+    if (code >= 61 && code <= 67) return ["🌧️", "雨"];
+    if (code >= 71 && code <= 77) return ["🌨️", "雪"];
+    if (code >= 80 && code <= 82) return ["🌦️", "にわか雨"];
+    if (code === 85 || code === 86) return ["🌨️", "にわか雪"];
+    if (code >= 95) return ["⛈️", "雷雨"];
+    return ["❓", "不明"];
+  }
+
+  const DEFAULT_LOC = { lat: 35.68, lon: 139.69 }; // 東京
+
+  function loadLoc() {
+    try { return JSON.parse(localStorage.getItem("loc") || "null"); }
+    catch (e) { return null; }
+  }
+  function saveLoc(loc) {
+    localStorage.setItem("loc", JSON.stringify(loc));
+  }
+
+  function getPosition() {
+    return new Promise(resolve => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        p => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
+        () => resolve(null),
+        { timeout: 10000, maximumAge: 600000 }
+      );
+    });
+  }
+
+  function applyWeather(data) {
+    weather = {};
+    const d = data.daily;
+    for (let i = 0; i < d.time.length; i++) {
+      weather[d.time[i]] = {
+        code: d.weather_code[i],
+        max: d.temperature_2m_max[i],
+        min: d.temperature_2m_min[i],
+        pop: d.precipitation_probability_max[i]
+      };
+    }
+    render();
+  }
+
+  async function loadWeather(forceLoc) {
+    let loc = loadLoc();
+    if (forceLoc || !loc) {
+      const pos = await getPosition();
+      loc = pos || loc || DEFAULT_LOC;
+      saveLoc(loc);
+    }
+
+    // 3時間以内の同じ場所のキャッシュがあれば使う
+    try {
+      const c = JSON.parse(localStorage.getItem("wx") || "null");
+      if (c && !forceLoc &&
+          Math.abs(c.lat - loc.lat) < 0.01 && Math.abs(c.lon - loc.lon) < 0.01 &&
+          Date.now() - c.t < 3 * 3600 * 1000) {
+        applyWeather(c.data);
+        return;
+      }
+    } catch (e) {}
+
+    const url = "https://api.open-meteo.com/v1/forecast" +
+      "?latitude=" + loc.lat.toFixed(3) +
+      "&longitude=" + loc.lon.toFixed(3) +
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+      "&timezone=auto&past_days=3&forecast_days=16";
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.daily) return;
+      localStorage.setItem("wx", JSON.stringify({ t: Date.now(), lat: loc.lat, lon: loc.lon, data: data }));
+      applyWeather(data);
+    } catch (e) {
+      // 取得失敗時は古いキャッシュがあればそれを使う
+      try {
+        const c = JSON.parse(localStorage.getItem("wx") || "null");
+        if (c) applyWeather(c.data);
+      } catch (e2) {}
+    }
   }
 
   // ---- 保存 ----
@@ -229,126 +330,4 @@
 
     const startOffset = new Date(year, month, 1).getDay();
     const start = new Date(year, month, 1 - startOffset);
-    const today = new Date();
-
-    for (let i = 0; i < 42; i++) {
-      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      if (d.getMonth() !== month) cell.classList.add("other");
-      if (d.getDay() === 0) cell.classList.add("sun");
-      if (d.getDay() === 6) cell.classList.add("sat");
-      if (sameDay(d, today)) cell.classList.add("today");
-
-      const top = document.createElement("div");
-      top.className = "top";
-      const num = document.createElement("span");
-      num.className = "num";
-      num.textContent = d.getDate();
-      const moon = document.createElement("span");
-      moon.className = "moon";
-      moon.textContent = MOONS[moonIndex(moonAge(d))];
-      top.appendChild(num);
-      top.appendChild(moon);
-      cell.appendChild(top);
-
-      const list = events[key(d)] || [];
-      list.slice(0, 2).forEach(ev => {
-        const e = document.createElement("span");
-        e.className = "ev";
-        e.textContent = ev.title;
-        cell.appendChild(e);
-      });
-      if (list.length > 2) {
-        const more = document.createElement("div");
-        more.className = "more";
-        more.textContent = "+" + (list.length - 2);
-        cell.appendChild(more);
-      }
-
-      cell.onclick = () => openSheet(d);
-      grid.appendChild(cell);
-    }
-  }
-
-  // ---- 予定シート ----
-  function openSheet(d) {
-    selected = d;
-    document.getElementById("sheetTitle").textContent =
-      (d.getMonth() + 1) + "月" + d.getDate() + "日の予定";
-    const age = moonAge(d);
-    const idx = moonIndex(age);
-    document.getElementById("sheetMoon").textContent =
-      MOONS[idx] + " 月齢 " + age.toFixed(1) + "（" + MOON_NAMES[idx] + "）";
-    renderList();
-    document.getElementById("sheet").classList.add("open");
-  }
-  function closeSheet() {
-    document.getElementById("sheet").classList.remove("open");
-  }
-  function renderList() {
-    const events = loadEvents();
-    const list = (events[key(selected)] || []).slice();
-    list.sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
-    const box = document.getElementById("list");
-    box.innerHTML = "";
-    if (list.length === 0) {
-      box.innerHTML = '<div class="empty">予定はありません</div>';
-      return;
-    }
-    list.forEach(ev => {
-      const row = document.createElement("div");
-      row.className = "item";
-      const label = document.createElement("span");
-      label.textContent = (ev.time ? ev.time + "  " : "") + ev.title;
-      const del = document.createElement("button");
-      del.textContent = "削除";
-      del.onclick = () => removeEvent(ev.id);
-      row.appendChild(label);
-      row.appendChild(del);
-      box.appendChild(row);
-    });
-  }
-  function addEvent() {
-    const titleEl = document.getElementById("evTitle");
-    const timeEl = document.getElementById("evTime");
-    const title = titleEl.value.trim();
-    if (!title || !selected) return;
-    const events = loadEvents();
-    const k = key(selected);
-    if (!events[k]) events[k] = [];
-    events[k].push({ id: Date.now(), title: title, time: timeEl.value });
-    saveEvents(events);
-    titleEl.value = "";
-    timeEl.value = "";
-    renderList();
-    render();
-  }
-  function removeEvent(id) {
-    const events = loadEvents();
-    const k = key(selected);
-    events[k] = (events[k] || []).filter(e => e.id !== id);
-    if (events[k].length === 0) delete events[k];
-    saveEvents(events);
-    renderList();
-    render();
-  }
-
-  document.getElementById("add").onclick = addEvent;
-  document.getElementById("evTitle").addEventListener("keydown", e => {
-    if (e.key === "Enter") addEvent();
-  });
-  document.getElementById("close").onclick = closeSheet;
-  document.getElementById("prev").onclick = () => {
-    current.setMonth(current.getMonth() - 1);
-    render();
-  };
-  document.getElementById("next").onclick = () => {
-    current.setMonth(current.getMonth() + 1);
-    render();
-  };
-
-  render();
-</script>
-</body>
-</html>
+    c
