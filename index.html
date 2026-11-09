@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>カレンダー</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: sans-serif;
+    background: #111;
+    color: #eee;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+  }
+  header button {
+    background: none;
+    border: none;
+    color: #eee;
+    font-size: 24px;
+    padding: 4px 12px;
+  }
+  #title { font-size: 20px; font-weight: bold; }
+  .week, .grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+  }
+  .week div {
+    text-align: center;
+    font-size: 12px;
+    padding: 6px 0;
+    color: #999;
+  }
+  .week div:first-child, .cell.sun { color: #ff6b6b; }
+  .week div:last-child, .cell.sat { color: #6bb5ff; }
+  .grid {
+    flex: 1;
+    grid-auto-rows: 1fr;
+    border-top: 1px solid #333;
+  }
+  .cell {
+    border-right: 1px solid #222;
+    border-bottom: 1px solid #222;
+    padding: 4px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .cell.other { opacity: 0.3; }
+  .cell.today .num {
+    background: #4a9eff;
+    color: #fff;
+    border-radius: 50%;
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    text-align: center;
+  }
+  .cell.selected { background: #222; }
+</style>
+</head>
+<body>
+  <header>
+    <button id="prev">‹</button>
+    <div id="title"></div>
+    <button id="next">›</button>
+  </header>
+  <div class="week">
+    <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
+  </div>
+  <div class="grid" id="grid"></div>
+
+<script>
+  let current = new Date();
+  current.setDate(1);
+  let selected = null;
+
+  function sameDay(a, b) {
+    return a.getFullYear() === b.getFullYear() &&
+           a.getMonth() === b.getMonth() &&
+           a.getDate() === b.getDate();
+  }
+
+  function render() {
+    const year = current.getFullYear();
+    const month = current.getMonth();
+    document.getElementById("title").textContent = year + "年" + (month + 1) + "月";
+
+    const grid = document.getElementById("grid");
+    grid.innerHTML = "";
+
+    const startOffset = new Date(year, month, 1).getDay();
+    const start = new Date(year, month, 1 - startOffset);
+    const today = new Date();
+
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      if (d.getMonth() !== month) cell.classList.add("other");
+      if (d.getDay() === 0) cell.classList.add("sun");
+      if (d.getDay() === 6) cell.classList.add("sat");
+      if (sameDay(d, today)) cell.classList.add("today");
+      if (selected && sameDay(d, selected)) cell.classList.add("selected");
+
+      const num = document.createElement("span");
+      num.className = "num";
+      num.textContent = d.getDate();
+      cell.appendChild(num);
+
+      cell.onclick = () => { selected = d; render(); };
+      grid.appendChild(cell);
+    }
+  }
+
+  document.getElementById("prev").onclick = () => {
+    current.setMonth(current.getMonth() - 1);
+    render();
+  };
+  document.getElementById("next").onclick = () => {
+    current.setMonth(current.getMonth() + 1);
+    render();
+  };
+
+  render();
+</script>
+</body>
+</html>
