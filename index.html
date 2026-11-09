@@ -71,11 +71,19 @@
     white-space: nowrap;
     display: flex;
     align-items: center;
-    gap: 1px;
+    gap: 0;
+    overflow: hidden;
+    min-width: 0;
   }
   .wx .ico {
     font-size: 11pt;
     line-height: 1;
+    flex-shrink: 0;
+    margin-right: 1px;
+  }
+  .wx .tmp {
+    overflow: hidden;
+    letter-spacing: -0.5px;
   }
   .cell.today .num {
     background: #4a9eff;
@@ -368,8 +376,11 @@
         const ico = document.createElement("span");
         ico.className = "ico";
         ico.textContent = wxInfo(w.code)[0];
+        const tmp = document.createElement("span");
+        tmp.className = "tmp";
+        tmp.textContent = Math.round(w.max) + "/" + Math.round(w.min);
         wx.appendChild(ico);
-        wx.appendChild(document.createTextNode(Math.round(w.max) + "°"));
+        wx.appendChild(tmp);
         cell.appendChild(wx);
       }
 
