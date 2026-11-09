@@ -28,15 +28,7 @@
 
   // ---- 見た目 ----
   var style = document.createElement("style");
-  style.textContent =
-    ".wxbig { display: flex; align-items: center; gap: 2px; margin-top: 1px; white-space: nowrap; }" +
-    ".wxbig .wi { font-size: " + ICON_SIZE + "px; line-height: 1; }" +
-    ".wxbig .wt { font-size: 11px; color: #ccc; }" +
-    "#locBtn { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);" +
-    " width: 44px; height: 44px; border-radius: 50%; border: none; background: #3a3a3c;" +
-    " color: #fff; font-size: 20px; box-shadow: 0 2px 10px rgba(0,0,0,.5); z-index: 5; }";
-  document.head.appendChild(style);
-  style.textContent += ".wx { display: none !important; }";
+style.textContent += ".wx { display: none !important; }";
 
   var locBtn = document.createElement("button");
   locBtn.id = "locBtn";
