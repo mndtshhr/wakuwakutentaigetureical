@@ -56,6 +56,12 @@
     min-width: 0;
   }
   .cell.other { opacity: 0.3; }
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .moon { font-size: 11px; line-height: 1; }
   .cell.today .num {
     background: #4a9eff;
     color: #fff;
@@ -93,7 +99,8 @@
     z-index: 10;
   }
   #sheet.open { transform: translateY(0); }
-  #sheetTitle { font-size: 17px; font-weight: bold; margin-bottom: 10px; }
+  #sheetTitle { font-size: 17px; font-weight: bold; margin-bottom: 4px; }
+  #sheetMoon { font-size: 13px; color: #aaa; margin-bottom: 10px; }
   .item {
     display: flex;
     align-items: center;
@@ -163,6 +170,7 @@
   <div id="sheet">
     <button id="close">✕</button>
     <div id="sheetTitle"></div>
+    <div id="sheetMoon"></div>
     <div id="list"></div>
     <div class="form">
       <input type="text" id="evTitle" placeholder="予定を入力">
@@ -175,6 +183,22 @@
   let current = new Date();
   current.setDate(1);
   let selected = null;
+
+  // ---- 月齢 ----
+  const SYNODIC = 29.530588;
+  const MOONS = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"];
+  const MOON_NAMES = ["新月", "三日月", "上弦", "十三夜", "満月", "十八夜", "下弦", "二十六夜"];
+
+  function moonAge(d) {
+    // その日の正午(端末の時間帯)で計算。基準: 2000-01-06 18:14 UTC の新月
+    const t = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12).getTime();
+    const ref = Date.UTC(2000, 0, 6, 18, 14);
+    const days = (t - ref) / 86400000;
+    return ((days % SYNODIC) + SYNODIC) % SYNODIC;
+  }
+  function moonIndex(age) {
+    return Math.floor((age / SYNODIC) * 8 + 0.5) % 8;
+  }
 
   // ---- 保存 ----
   function loadEvents() {
@@ -216,10 +240,17 @@
       if (d.getDay() === 6) cell.classList.add("sat");
       if (sameDay(d, today)) cell.classList.add("today");
 
+      const top = document.createElement("div");
+      top.className = "top";
       const num = document.createElement("span");
       num.className = "num";
       num.textContent = d.getDate();
-      cell.appendChild(num);
+      const moon = document.createElement("span");
+      moon.className = "moon";
+      moon.textContent = MOONS[moonIndex(moonAge(d))];
+      top.appendChild(num);
+      top.appendChild(moon);
+      cell.appendChild(top);
 
       const list = events[key(d)] || [];
       list.slice(0, 2).forEach(ev => {
@@ -245,6 +276,10 @@
     selected = d;
     document.getElementById("sheetTitle").textContent =
       (d.getMonth() + 1) + "月" + d.getDate() + "日の予定";
+    const age = moonAge(d);
+    const idx = moonIndex(age);
+    document.getElementById("sheetMoon").textContent =
+      MOONS[idx] + " 月齢 " + age.toFixed(1) + "（" + MOON_NAMES[idx] + "）";
     renderList();
     document.getElementById("sheet").classList.add("open");
   }
