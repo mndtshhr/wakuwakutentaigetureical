@@ -28,7 +28,7 @@
 
   // ---- 見た目 ----
   var style = document.createElement("style");
-style.textContent += ".wx { display: none !important; }";
+  style.textContent += ".wx { display: none !important; }";
 
   var locBtn = document.createElement("button");
   locBtn.id = "locBtn";
