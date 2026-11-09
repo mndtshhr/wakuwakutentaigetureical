@@ -36,6 +36,7 @@
     " width: 44px; height: 44px; border-radius: 50%; border: none; background: #3a3a3c;" +
     " color: #fff; font-size: 20px; box-shadow: 0 2px 10px rgba(0,0,0,.5); z-index: 5; }";
   document.head.appendChild(style);
+  style.textContent += ".wx { display: none !important; }";
 
   var locBtn = document.createElement("button");
   locBtn.id = "locBtn";
