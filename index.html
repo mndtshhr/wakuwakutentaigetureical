@@ -300,32 +300,31 @@
   }
 
   async function loadWeather(forceLoc) {
-    let loc = loadLoc();
-    const isDefault = loc &&
-      Math.abs(loc.lat - DEFAULT_LOC.lat) < 0.01 &&
-      Math.abs(loc.lon - DEFAULT_LOC.lon) < 0.01;
+       let loc = loadLoc();
+    const saved = loc;
 
-    if (forceLoc || !loc || isDefault) {
-      const pos = await getPosition();
-      if (pos.lat !== undefined) {
-        loc = { lat: pos.lat, lon: pos.lon };
-        saveLoc(loc);
-        if (forceLoc) showToast("現在地の天気を取得しました");
-      } else {
-        // 失敗したときは、東京を「現在地」として保存しない
-        if (!loc) loc = DEFAULT_LOC;
-        let msg = "現在地を取得できませんでした。東京の天気を表示します。";
+    // 開くたびに現在地を取り直す（失敗したら保存済みの場所を使う）
+    const pos = await getPosition();
+    if (pos.lat !== undefined) {
+      loc = { lat: pos.lat, lon: pos.lon };
+      saveLoc(loc);
+      if (forceLoc) {
+        showToast("現在地を取得しました\n緯度 " + loc.lat.toFixed(2) + " / 経度 " + loc.lon.toFixed(2));
+      }
+    } else {
+      if (!loc) loc = DEFAULT_LOC;
+      if (forceLoc || !saved) {
+        let msg = "現在地を取得できませんでした。";
         if (pos.err === "denied") {
-          msg = "位置情報が許可されていません。\nChromeのアドレスバー左の鍵マーク→権限→位置情報を許可して、📍を押してください。\n（今は東京の天気です）";
+          msg = "位置情報が許可されていません。\nAndroidの設定→アプリ→Chrome→権限→位置情報も確認してください。";
         } else if (pos.err === "timeout") {
-          msg = "現在地の取得が時間切れでした。電波の良い場所で📍を押してください。\n（今は東京の天気です）";
+          msg = "現在地の取得が時間切れでした。電波の良い場所で📍を押してください。";
         } else if (pos.err === "unavailable") {
-          msg = "位置情報を取得できません。端末の位置情報をオンにして、📍を押してください。\n（今は東京の天気です）";
+          msg = "位置情報を取得できません。端末の位置情報をオンにしてください。";
         }
-        showToast(msg);
+        showToast(msg + "\n[" + pos.err + "]\n（今は" + (saved ? "前回の場所" : "東京") + "の天気です）");
       }
     }
-
     // 3時間以内の同じ場所のキャッシュがあれば使う
     try {
       const c = JSON.parse(localStorage.getItem("wx") || "null");
