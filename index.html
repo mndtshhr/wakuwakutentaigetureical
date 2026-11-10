@@ -242,13 +242,29 @@
     localStorage.setItem("loc", JSON.stringify(loc));
   }
 
+    function showToast(text) {
+    let t = document.getElementById("toast");
+    if (!t) {
+      t = document.createElement("div");
+      t.id = "toast";
+      t.style.cssText = "position:fixed;left:50%;top:70px;transform:translateX(-50%);" +
+        "background:#333;color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;" +
+        "z-index:50;max-width:90%;white-space:pre-line;text-align:center;";
+      document.body.appendChild(t);
+    }
+    t.textContent = text;
+    t.style.display = "block";
+    clearTimeout(t._h);
+    t._h = setTimeout(() => { t.style.display = "none"; }, 6000);
+  }
+
   function getPosition() {
     return new Promise(resolve => {
-      if (!navigator.geolocation) { resolve(null); return; }
+      if (!navigator.geolocation) { resolve({ err: "unsupported" }); return; }
       navigator.geolocation.getCurrentPosition(
         p => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
-        () => resolve(null),
-        { timeout: 10000, maximumAge: 600000 }
+        e => resolve({ err: e.code === 1 ? "denied" : e.code === 2 ? "unavailable" : "timeout" }),
+        { enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 }
       );
     });
   }
@@ -269,10 +285,29 @@
 
   async function loadWeather(forceLoc) {
     let loc = loadLoc();
-    if (forceLoc || !loc) {
+    const isDefault = loc &&
+      Math.abs(loc.lat - DEFAULT_LOC.lat) < 0.01 &&
+      Math.abs(loc.lon - DEFAULT_LOC.lon) < 0.01;
+
+    if (forceLoc || !loc || isDefault) {
       const pos = await getPosition();
-      loc = pos || loc || DEFAULT_LOC;
-      saveLoc(loc);
+      if (pos.lat !== undefined) {
+        loc = { lat: pos.lat, lon: pos.lon };
+        saveLoc(loc);
+        if (forceLoc) showToast("現在地の天気を取得しました");
+      } else {
+        // 失敗したときは、東京を「現在地」として保存しない
+        if (!loc) loc = DEFAULT_LOC;
+        let msg = "現在地を取得できませんでした。東京の天気を表示します。";
+        if (pos.err === "denied") {
+          msg = "位置情報が許可されていません。\nChromeのアドレスバー左の鍵マーク→権限→位置情報を許可して、📍を押してください。\n（今は東京の天気です）";
+        } else if (pos.err === "timeout") {
+          msg = "現在地の取得が時間切れでした。電波の良い場所で📍を押してください。\n（今は東京の天気です）";
+        } else if (pos.err === "unavailable") {
+          msg = "位置情報を取得できません。端末の位置情報をオンにして、📍を押してください。\n（今は東京の天気です）";
+        }
+        showToast(msg);
+      }
     }
 
     // 3時間以内の同じ場所のキャッシュがあれば使う
@@ -298,14 +333,12 @@
       localStorage.setItem("wx", JSON.stringify({ t: Date.now(), lat: loc.lat, lon: loc.lon, data: data }));
       applyWeather(data);
     } catch (e) {
-      // 取得失敗時は古いキャッシュがあればそれを使う
       try {
         const c = JSON.parse(localStorage.getItem("wx") || "null");
         if (c) applyWeather(c.data);
       } catch (e2) {}
     }
   }
-
   // ---- 保存 ----
   function loadEvents() {
     try { return JSON.parse(localStorage.getItem("events") || "{}"); }
