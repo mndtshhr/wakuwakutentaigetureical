@@ -42,6 +42,10 @@
   const HELP = "CSVの形式：日付,時刻,タイトル\n例：2026-12-03,15:00,歯医者\n（時刻は空でもOK）";
 
   function openCard(text) {
+    // 予定シートと位置情報カードは閉じる
+    if (typeof closeSheet === "function") closeSheet();
+    var loc = document.getElementById("locCard");
+    if (loc) loc.classList.remove("open");
     msg.textContent = text || HELP;
     card.classList.add("open");
   }
