@@ -258,6 +258,7 @@
     localStorage.setItem("loc", JSON.stringify(loc));
   }
 
+  // 位置情報のお知らせカード（CSVのカードと同じ見た目）
   function showToast(text) {
     if (!document.getElementById("locCardStyle")) {
       const st = document.createElement("style");
@@ -282,10 +283,17 @@
         c.classList.remove("open");
       };
     }
+    // 予定シートとCSVカードを閉じてから表示する
+    closeSheet();
+    const csvCard = document.getElementById("csvCard");
+    if (csvCard) csvCard.classList.remove("open");
+
     document.getElementById("locMsg").textContent = text;
     c.classList.add("open");
-       clearTimeout(c._h); c._h = setTimeout(function () { c.classList.remove("open"); }, 8000);
+    clearTimeout(c._h);
+    c._h = setTimeout(function () { c.classList.remove("open"); }, 8000);
   }
+
   function getPosition() {
     return new Promise(resolve => {
       if (!navigator.geolocation) { resolve({ err: "unsupported" }); return; }
@@ -296,6 +304,7 @@
       );
     });
   }
+
   function applyWeather(data) {
     weather = {};
     const d = data.daily;
@@ -311,7 +320,7 @@
   }
 
   async function loadWeather(forceLoc) {
-       let loc = loadLoc();
+    let loc = loadLoc();
     const saved = loc;
 
     // 開くたびに現在地を取り直す（失敗したら保存済みの場所を使う）
@@ -336,6 +345,7 @@
         showToast(msg + "\n[" + pos.err + "]\n（今は" + (saved ? "前回の場所" : "東京") + "の天気です）");
       }
     }
+
     // 3時間以内の同じ場所のキャッシュがあれば使う
     try {
       const c = JSON.parse(localStorage.getItem("wx") || "null");
@@ -455,6 +465,13 @@
   // ---- 予定シート ----
   function openSheet(d) {
     selected = d;
+
+    // CSV・位置情報のカードは閉じる
+    ["csvCard", "locCard"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.remove("open");
+    });
+
     document.getElementById("sheetTitle").textContent =
       (d.getMonth() + 1) + "月" + d.getDate() + "日の予定";
     const age = moonAge(d);
@@ -575,6 +592,6 @@
   render();
   loadWeather(false);
 </script>
- <script src="csv.js"></script>
+<script src="csv.js"></script>
 </body>
 </html>
