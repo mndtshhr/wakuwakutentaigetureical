@@ -27,7 +27,6 @@
     font-size: 24px;
     padding: 4px 12px;
   }
-  #loc { font-size: 18px !important; }
   #title { font-size: 20px; font-weight: bold; }
   .week, .grid {
     display: grid;
@@ -46,6 +45,7 @@
     grid-auto-rows: 1fr;
     border-top: 1px solid #333;
     min-height: 0;
+    touch-action: pan-y;
   }
   .cell {
     border-right: 1px solid #222;
@@ -106,6 +106,22 @@
     text-overflow: ellipsis;
   }
   .more { font-size: 10px; color: #999; margin-top: 2px; }
+
+  /* 現在地ボタン：左下の📄(csv)のすぐ右 */
+  #locBtn {
+    position: fixed;
+    left: 80px;
+    bottom: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: #3a3a3c;
+    color: #fff;
+    font-size: 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.5);
+    z-index: 5;
+  }
 
   #sheet {
     position: fixed;
@@ -174,14 +190,14 @@
   <header>
     <button id="prev">‹</button>
     <div id="title"></div>
-    <div>
-      <button id="loc">📍</button><button id="next">›</button>
-    </div>
+    <button id="next">›</button>
   </header>
   <div class="week">
     <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
   </div>
   <div class="grid" id="grid"></div>
+
+  <button id="locBtn">📍</button>
 
   <div id="sheet">
     <button id="close">✕</button>
@@ -242,7 +258,7 @@
     localStorage.setItem("loc", JSON.stringify(loc));
   }
 
-    function showToast(text) {
+  function showToast(text) {
     let t = document.getElementById("toast");
     if (!t) {
       t = document.createElement("div");
@@ -339,6 +355,7 @@
       } catch (e2) {}
     }
   }
+
   // ---- 保存 ----
   function loadEvents() {
     try { return JSON.parse(localStorage.getItem("events") || "{}"); }
@@ -497,24 +514,57 @@
     render();
   }
 
+  // ---- 月の移動 ----
+  function prevMonth() {
+    current.setMonth(current.getMonth() - 1);
+    render();
+  }
+  function nextMonth() {
+    current.setMonth(current.getMonth() + 1);
+    render();
+  }
+
+  // ---- スワイプで月移動（左へ=翌月、右へ=先月）----
+  (function () {
+    const grid = document.getElementById("grid");
+    let sx = 0, sy = 0, st = 0, tracking = false;
+
+    grid.addEventListener("touchstart", function (e) {
+      if (e.touches.length !== 1) { tracking = false; return; }
+      sx = e.touches[0].clientX;
+      sy = e.touches[0].clientY;
+      st = Date.now();
+      tracking = true;
+    }, { passive: true });
+
+    grid.addEventListener("touchend", function (e) {
+      if (!tracking) return;
+      tracking = false;
+      if (document.getElementById("sheet").classList.contains("open")) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+      if (Date.now() - st > 800) return;                 // ゆっくりした操作は無視
+      if (Math.abs(dx) < 60) return;                      // 短すぎる動きは無視
+      if (Math.abs(dx) < Math.abs(dy) * 1.5) return;      // 縦寄りの動きは無視
+      if (dx < 0) nextMonth(); else prevMonth();
+    }, { passive: true });
+
+    grid.addEventListener("touchcancel", function () { tracking = false; }, { passive: true });
+  })();
+
   document.getElementById("add").onclick = addEvent;
   document.getElementById("evTitle").addEventListener("keydown", e => {
     if (e.key === "Enter") addEvent();
   });
   document.getElementById("close").onclick = closeSheet;
-  document.getElementById("prev").onclick = () => {
-    current.setMonth(current.getMonth() - 1);
-    render();
-  };
-  document.getElementById("next").onclick = () => {
-    current.setMonth(current.getMonth() + 1);
-    render();
-  };
-  document.getElementById("loc").onclick = () => loadWeather(true);
+  document.getElementById("prev").onclick = prevMonth;
+  document.getElementById("next").onclick = nextMonth;
+  document.getElementById("locBtn").onclick = () => loadWeather(true);
 
   render();
   loadWeather(false);
-</script> 
+</script>
  <script src="csv.js"></script>
 </body>
 </html>
