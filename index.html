@@ -286,7 +286,16 @@
     c.classList.add("open");
        clearTimeout(c._h); c._h = setTimeout(function () { c.classList.remove("open"); }, 8000);
   }
-
+  function getPosition() {
+    return new Promise(resolve => {
+      if (!navigator.geolocation) { resolve({ err: "unsupported" }); return; }
+      navigator.geolocation.getCurrentPosition(
+        p => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
+        e => resolve({ err: e.code === 1 ? "denied" : e.code === 2 ? "unavailable" : "timeout" }),
+        { enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 }
+      );
+    });
+  }
   function applyWeather(data) {
     weather = {};
     const d = data.daily;
